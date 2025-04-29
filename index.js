@@ -1,15 +1,24 @@
-const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes, InteractionType } = require('discord.js');
-const { token } = require('./config.json');
+const { 
+  Client, 
+  GatewayIntentBits, 
+  EmbedBuilder, 
+  SlashCommandBuilder, 
+  REST, 
+  Routes 
+} = require('discord.js');
+
+const token = process.env.TOKEN;
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
+// === Slash command ===
 const command = new SlashCommandBuilder()
   .setName('drop')
   .setDescription('Spróbuj szczęścia! 5% szans na wygraną.');
 
-// Rejestracja komendy
+// === Rejestracja komendy ===
 client.once('ready', async () => {
   console.log(`Zalogowano jako ${client.user.tag}`);
 
@@ -27,10 +36,34 @@ client.once('ready', async () => {
   }
 });
 
-// Obsługa komendy
+// === Cooldown per użytkownik ===
+const cooldowns = new Map();
+
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
   if (interaction.commandName === 'drop') {
+    const userId = interaction.user.id;
+    const now = Date.now();
+    const cooldownTime = 2 * 60 * 60 * 1000; // 2 godziny
+
+    if (cooldowns.has(userId)) {
+      const expirationTime = cooldowns.get(userId) + cooldownTime;
+
+      if (now < expirationTime) {
+        const remaining = expirationTime - now;
+        const remainingHours = Math.floor(remaining / (1000 * 60 * 60));
+        const remainingMinutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+        const remainingSeconds = Math.floor((remaining % (1000 * 60)) / 1000);
+
+        return interaction.reply({
+          content: `⏳ Możesz użyć tej komendy ponownie za **${remainingHours}h ${remainingMinutes}m ${remainingSeconds}s**.`,
+          ephemeral: true
+        });
+      }
+    }
+
+    cooldowns.set(userId, now);
+
     const chance = Math.floor(Math.random() * 100) + 1;
     let embed;
 
@@ -50,4 +83,4 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-const token = process.env.TOKEN;
+client.login(token);
