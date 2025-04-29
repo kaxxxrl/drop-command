@@ -1,24 +1,19 @@
-const { 
-  Client, 
-  GatewayIntentBits, 
-  EmbedBuilder, 
-  SlashCommandBuilder, 
-  REST, 
-  Routes 
-} = require('discord.js');
-
-const token = process.env.TOKEN;
+const { Client, GatewayIntentBits, EmbedBuilder, SlashCommandBuilder, REST, Routes } = require('discord.js');
+const { token } = require('./config.json');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-// === Slash command ===
 const command = new SlashCommandBuilder()
   .setName('drop')
   .setDescription('Spróbuj szczęścia! 5% szans na wygraną.');
 
-// === Rejestracja komendy ===
+// Kolekcja do przechowywania cooldownów
+const cooldowns = new Map();
+const cooldownTime = 2 * 60 * 60 * 1000; // 2 godziny
+
+// Rejestracja komendy
 client.once('ready', async () => {
   console.log(`Zalogowano jako ${client.user.tag}`);
 
@@ -36,34 +31,35 @@ client.once('ready', async () => {
   }
 });
 
-// === Cooldown per użytkownik ===
-const cooldowns = new Map();
+// Obsługa komendy
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isCommand()) return;
 
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isChatInputCommand()) return;
-  if (interaction.commandName === 'drop') {
-    const userId = interaction.user.id;
+  const userId = interaction.user.id;
+
+  // Sprawdzanie cooldownu
+  if (cooldowns.has(userId)) {
     const now = Date.now();
-    const cooldownTime = 2 * 60 * 60 * 1000; // 2 godziny
+    const expirationTime = cooldowns.get(userId) + cooldownTime;
 
-    if (cooldowns.has(userId)) {
-      const expirationTime = cooldowns.get(userId) + cooldownTime;
+    if (now < expirationTime) {
+      const remaining = expirationTime - now;
+      const remainingHours = Math.floor(remaining / (1000 * 60 * 60));
+      const remainingMinutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+      const remainingSeconds = Math.floor((remaining % (1000 * 60)) / 1000);
 
-      if (now < expirationTime) {
-        const remaining = expirationTime - now;
-        const remainingHours = Math.floor(remaining / (1000 * 60 * 60));
-        const remainingMinutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-        const remainingSeconds = Math.floor((remaining % (1000 * 60)) / 1000);
-
-        return interaction.reply({
-          content: `⏳ Możesz użyć tej komendy ponownie za **${remainingHours}h ${remainingMinutes}m ${remainingSeconds}s**.`,
-          ephemeral: true
-        });
-      }
+      return interaction.reply({
+        content: `Spróbuj ponownie za ${remainingHours} godzin, ${remainingMinutes} minut i ${remainingSeconds} sekund.`,
+        ephemeral: true, // Wysyłamy wiadomość tylko do użytkownika
+      });
     }
+  }
 
-    cooldowns.set(userId, now);
+  // Komenda działa, więc ustawiamy cooldown
+  cooldowns.set(userId, Date.now());
 
+  // Kod do wykonania komendy
+  if (interaction.commandName === 'drop') {
     const chance = Math.floor(Math.random() * 100) + 1;
     let embed;
 
